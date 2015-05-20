@@ -94,6 +94,7 @@ class LanguagePack::Ruby < LanguagePack::Base
         create_database_yml
         install_binaries
         run_assets_precompile_rake_task
+        migrate_schema
       end
       super
     end
@@ -861,6 +862,27 @@ params = CGI.parse(uri.query || "")
       @bundler_cache.clear(stack)
       # need to reinstall language pack gems
       install_bundler_in_app
+    end
+  end
+
+  def migrate_schema
+    instrument 'ruby.migrate_schema' do
+      topic("Migrating database schema")
+
+      migration_task = rake.task('db:migrate')
+      migration_task.invoke(env: rake_env)
+
+      if migration_task.success?
+        log "migrate_schema", :status => "success"
+        puts "Database migration completed in (#{"%.2f" % migration_task.time}s)"
+
+        puts migration_task.output
+      else
+        log "migrate_schema", :status => "failure"
+        msg = "Precompiling assets failed.\n"
+        msg << migration_task.output
+        error msg
+      end
     end
   end
 end
